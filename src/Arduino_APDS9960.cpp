@@ -52,14 +52,14 @@ bool APDS9960::begin() {
   if (!setWTIME(0xFF)) return false;
   if (!setGPULSE(0x8F)) return false; // 16us, 16 pulses // default is: 0x40 = 8us, 1 pulse
   if (!setPPULSE(0x8F)) return false; // 16us, 16 pulses // default is: 0x40 = 8us, 1 pulse
-  if (!setGestureIntEnable(true)) return false;
+  if (!setGestureIntEnable(false)) return false;
   if (!setGestureMode(true)) return false;
-  if (!enablePower()) return false;
-  if (!enableWait()) return false;
+  // if (!enablePower()) return false;
+  // if (!enableWait()) return false;
   // set ADC integration time to 10 ms
   if (!setATIME(256 - (10 / 2.78))) return false;
   // set ADC gain 4x (0x00 => 1x, 0x01 => 4x, 0x02 => 16x, 0x03 => 64x)
-  if (!setCONTROL(0x02)) return false;
+  // if (!setCONTROL(0x00)) return false;
   delay(10);
   // enable power
   if (!enablePower()) return false;
@@ -269,7 +269,7 @@ size_t APDS9960::readBlock(uint8_t reg, uint8_t *val, unsigned int len) {
 int APDS9960::gestureFIFOAvailable() {
   uint8_t r;
   if (!getGSTATUS(&r)) return -1;
-  if ((r & 0x01) == 0x00) return -2;
+  if ((r & 0x01) == 0x00) return -2;//All FIFO data has been read
   if (!getGFLVL(&r)) return -3;
   return r;
 }
@@ -335,6 +335,24 @@ int APDS9960::handleGesture() {
   }
 }
 
+int APDS9960::handleGesture(int dataset_count, uint8_t up[32], uint8_t down[32], uint8_t left[32], uint8_t right[32])
+{
+  if (dataset_count <= 0) return 0;
+
+  uint8_t fifo_data[128];
+  uint8_t bytes_read = readGFIFO_U(fifo_data, dataset_count * 4);
+  if (bytes_read == 0) return 0;
+
+  for (int i = 0; i+3 < bytes_read; i+=4) {
+    int idx = i/4;
+    up[idx] = fifo_data[i];
+    down[idx] = fifo_data[i+1];
+    left[idx] = fifo_data[i+2];
+    right[idx] = fifo_data[i+3];
+  }
+  return 1;
+}
+
 int APDS9960::gestureAvailable() {
   if (!_gestureEnabled) enableGesture();
 
@@ -351,6 +369,28 @@ int APDS9960::gestureAvailable() {
     setGestureMode(false);
   }
   return (_detectedGesture == GESTURE_NONE) ? 0 : 1;
+}
+
+int APDS9960::gestureAvailable(uint8_t up[32], uint8_t down[32], uint8_t left[32], uint8_t right[32])
+{
+  if (!_gestureEnabled) enableGesture();
+
+  if (_intPin > -1) {
+    if (digitalRead(_intPin) != LOW) {
+      return 0;
+    }
+  }
+    int dataset_count = gestureFIFOAvailable();
+  if (dataset_count <= 0) {
+        return 0;
+  }
+  
+  handleGesture(dataset_count, up, down, left, right);
+  if (_proximityEnabled) {
+    setGestureMode(false);
+  }
+  
+  return dataset_count;
 }
 
 int APDS9960::readGesture() {

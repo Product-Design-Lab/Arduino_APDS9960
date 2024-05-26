@@ -40,6 +40,7 @@ public:
   void end();
 
   int gestureAvailable();
+  int gestureAvailable(uint8_t up[32], uint8_t down[32], uint8_t left[32], uint8_t right[32]);
   int readGesture();
 
   int colorAvailable();
@@ -60,6 +61,7 @@ private:
   bool setGestureMode(bool en);
   int gestureFIFOAvailable();
   int handleGesture();
+  int handleGesture(int dataset_count, uint8_t up[32], uint8_t down[32], uint8_t left[32], uint8_t right[32]);
 
   bool enablePower();
   bool disablePower();
